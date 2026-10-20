@@ -105,6 +105,12 @@ header.top:after{content:"";position:absolute;right:-80px;top:-60px;width:320px;
 .bar{margin:18px 0 6px;height:18px;border-radius:999px;overflow:hidden;display:flex;background:var(--chip)}
 .bar .a{background:var(--navy-3)} .bar .b{background:var(--orange)}
 .barlbl{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);font-weight:600}
+.conf{margin-top:10px;font-size:15px;color:var(--muted)}
+.conf b{color:var(--ink)}
+.tblmini{overflow-x:auto;margin:8px 0 12px;border-radius:10px;border:1px solid var(--line)}
+.tblmini table{font-size:13px}
+.tblmini th{position:static;cursor:default}
+.tblmini th,.tblmini td{padding:6px 8px}
 .reasons{margin:16px 0 0;padding-left:20px}
 .reasons li{margin:4px 0}
 .ractions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
@@ -124,7 +130,8 @@ td .add:hover{background:var(--orange);color:#1b1206}
 .src{color:var(--muted);font-size:12px}
 
 /* Critérios */
-.crit{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.crit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.crit .box{min-width:0}
 .box{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:18px}
 .box h3{font-family:"Barlow Condensed",sans-serif;font-size:22px;margin:0 0 10px;text-transform:uppercase}
 .box p{margin:8px 0}
@@ -146,7 +153,7 @@ footer{margin:28px 0 30px;color:var(--muted);font-size:13px;text-align:center}
   .hdr h1{font-size:30px}
   .sides{grid-template-columns:minmax(0,1fr)}
   .swap{transform:rotate(90deg);margin:-4px auto}
-  .crit{grid-template-columns:1fr}
+  .crit{grid-template-columns:minmax(0,1fr)}
   .vbadge{font-size:28px}
   .tab{font-size:15px;padding:10px 8px}
   th,td{padding:8px 7px}
@@ -198,6 +205,7 @@ footer{margin:28px 0 30px;color:var(--muted);font-size:13px;text-align:center}
       <div class="verdict"><div class="vbadge" id="vbadge"></div><div class="vtext" id="vtext"></div></div>
       <div class="bar"><div class="a" id="barA"></div><div class="b" id="barB"></div></div>
       <div class="barlbl"><span id="barlA"></span><span id="barlB"></span></div>
+      <div class="conf" id="conf"></div>
       <ul class="reasons" id="reasons"></ul>
       <div class="ractions">
         <button class="btn orange" id="copyBtn">Copiar parecer</button>
@@ -216,9 +224,9 @@ footer{margin:28px 0 30px;color:var(--muted);font-size:13px;text-align:center}
       <table>
         <thead><tr>
           <th class="n" data-sort="rank">#</th><th data-sort="name">Jogador</th><th data-sort="team">Time</th><th class="hide-m" data-sort="pos">Pos</th>
-          <th class="n" data-sort="fppg">FPPG</th><th class="n hide-m" data-sort="games">Jogos rest.</th><th class="n" data-sort="value">Valor</th><th class="hide-m">Base</th><th></th>
+          <th class="n" data-sort="fppg">FPPG</th><th class="n hide-m" data-sort="counted">Jogos contados</th><th class="n" data-sort="value">Valor</th><th class="n hide-m" data-sort="sd">Margem</th><th class="hide-m">Base</th><th></th>
         </tr></thead>
-        <tbody id="rkBody"><tr><td colspan="9" class="loading">Carregando...</td></tr></tbody>
+        <tbody id="rkBody"><tr><td colspan="10" class="loading">Carregando...</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -232,21 +240,38 @@ footer{margin:28px 0 30px;color:var(--muted);font-size:13px;text-align:center}
       <div class="box">
         <h3>Resultado da troca</h3>
         <div class="th3" id="thBox"></div>
-        <p>O percentual é a diferença entre os valores trocados dividida pelo maior dos dois lados. Diferenças absolutas pequenas são sempre aprovadas. Troca que envolva jogador com status OUT, IR ou suspenso vai no mínimo para análise do LM.</p>
+        <p>O percentual é a diferença entre os valores trocados dividida pelo maior dos dois lados. Diferenças absolutas pequenas são sempre aprovadas.</p>
+        <p>A <b>confiança estatística</b> é a probabilidade de o lado que recebe mais valor realmente sair ganhando, considerando a margem de erro medida do modelo. Uma troca só é reprovada quando a diferença é grande e o modelo tem segurança disso.</p>
       </div>
       <div class="box">
         <h3>Como o valor é calculado</h3>
-        <code class="f">Valor = (FPPG − FPPG de reposição) × jogos restantes esperados</code>
-        <p><b>FPPG</b> é a média de pontos por jogo recalculada com a pontuação da liga. Parte da projeção da ESPN para a temporada e, conforme o jogador atua, passa a pesar cada vez mais o desempenho real da temporada atual.</p>
-        <p><b>Jogos restantes esperados</b> são os jogos que o time NBA ainda tem no calendário, multiplicados pela taxa de presença projetada do jogador.</p>
-        <p><b>FPPG de reposição</b> é a média do jogador que ocupa a posição <span id="replN"></span>. É o nível de quem está disponível na waiver. Jogador abaixo desse nível vale zero, porque pode ser substituído de graça. Por isso dois jogadores medianos não equivalem a um craque.</p>
+        <code class="f" id="formula"></code>
+        <p><b>FPPG</b> é a média de pontos por jogo com a pontuação da liga. Parte da projeção da ESPN, mistura com a temporada atual com peso equivalente a 15 jogos e soma um ajuste de forma, com 10% de peso para os últimos 15 dias e 5% para os últimos 30.</p>
+        <p><b>Jogos contados</b> são os jogos restantes do time NBA, multiplicados pela presença esperada do jogador e pela fração de jogos que entra na escalação conforme a posição dele no elenco.</p>
+        <p><b>Pontos contados</b> são o FPPG multiplicado pelos jogos contados.</p>
+        <p>O <b>custo da vaga</b>, hoje de <b><span id="slotCost"></span></b>, é o que um free agent renderia no lugar do jogador no restante da temporada. É a média prevista do 5º ao 10º melhor jogador fora dos 168 elencados, recalculada a cada atualização. Por isso dois jogadores medianos não equivalem a um craque, cada um ocupa uma vaga.</p>
+      </div>
+      <div class="box">
+        <h3>Uso do elenco e ausências</h3>
+        <p>Com 7 titulares, 7 reservas e o calendário da NBA, até os reservas pontuam na maior parte dos dias. Fração dos jogos que conta, por posição no elenco:</p>
+        <div class="tblmini"><table id="usageTbl"></table></div>
+        <p>Fator sobre os jogos previstos conforme a sequência atual de jogos perdidos:</p>
+        <div class="tblmini"><table id="absTbl"></table></div>
+        <p>A margem de erro do valor de cada jogador hoje é de <b id="sdNow"></b>, menor conforme a temporada avança.</p>
+      </div>
+      <div class="box">
+        <h3>Como os pesos foram calibrados</h3>
+        <p>Todos os parâmetros foram medidos com as temporadas 2024-25 e 2025-26, com cerca de 800 jogadores. Os pesos foram ajustados em uma temporada e validados na outra.</p>
+        <p>A mistura entre projeção e temporada atual erra em média 3,0 pontos por jogo no restante da temporada, contra 3,6 da projeção pura da ESPN. Os fatores de ausência eliminaram um viés de 5 jogos a mais por jogador.</p>
+        <p>O uso do elenco e os pesos de pontos e jogos vêm de uma simulação dia a dia da temporada com 12 times, 7 titulares, 7 reservas e até 10 contratações por semana. A fórmula explica de 79% a 91% do valor simulado de cada jogador.</p>
+        <p>O custo da vaga não é fixo porque a simulação mostrou que ele depende muito de como os managers usam a waiver. Por isso é calculado com os free agents de cada momento.</p>
       </div>
       <div class="box">
         <h3>Premissas e limitações</h3>
-        <p id="premise"></p>
-        <p>A projeção da ESPN não traz rebotes ofensivos nem double-doubles. Esses itens são estimados pela taxa do jogador na temporada passada. Para calouros e para quem jogou menos de 10 partidas na temporada passada, a estimativa é estatística e aparece marcada como estimada.</p>
-        <p>A ferramenta não conhece o elenco de cada time, a necessidade por posição nem o momento de cada manager. O resultado orienta, a decisão final é do LM.</p>
-        <p>Os dados vêm de uma API pública da ESPN que não é oficialmente documentada e pode mudar sem aviso.</p>
+        <p>A liga é tratada como redraft. A ferramenta não conhece o elenco de cada time, então a posição do jogador no elenco é estimada pelo ranking geral.</p>
+        <p>A projeção da ESPN não traz rebotes ofensivos nem double-doubles. Esses itens vêm da temporada passada do jogador. Para calouros e para quem jogou menos de 10 partidas, a estimativa é estatística e aparece marcada como estimada.</p>
+        <p>A simulação supõe managers ativos, que escalam bem e usam o streaming. Os pesos são os melhores para os dados disponíveis e devem ser recalibrados a cada temporada.</p>
+        <p>Os dados vêm de uma API pública da ESPN que não é oficialmente documentada e pode mudar sem aviso. O resultado orienta, a decisão final é do LM.</p>
       </div>
     </div>
   </section>
@@ -257,28 +282,47 @@ footer{margin:28px 0 30px;color:var(--muted);font-size:13px;text-align:center}
 
 <script>
 /* ===================== CONFIGURAÇÃO DA LIGA ===================== */
+/* Parâmetros calibrados por backtest nas temporadas 2024-25 e 2025-26 */
 const CONFIG = {
-  TEAMS: 10,            // número de times da liga
-  ROSTER: 13,           // vagas por elenco, titulares + banco, sem IR
-  APPROVE_PCT: 0.10,    // até 10% de diferença: aprovada
-  REVIEW_PCT: 0.25,     // de 10% a 25%: análise do LM. Acima: reprovada
-  ABS_TOL: 100,         // diferença absoluta abaixo disso é sempre aprovada
-  PRIOR_GAMES: 15,      // peso da projeção, em jogos, na mistura com a temporada atual
+  TEAMS: 12,
+  ROSTER: 14,
+  STARTERS: 7,              // PG, SG, SF, PF, C, UTIL, UTIL
+  APPROVE_PCT: 0.15,        // até 15% de diferença: aprovada
+  REVIEW_PCT: 0.30,         // acima de 30% pode ser reprovada
+  CONF_REJECT: 0.85,        // confiança mínima para reprovar
+  ABS_TOL: 100,             // diferença absoluta abaixo disso é sempre aprovada
+  PRIOR_GAMES: 15,          // peso da projeção, em jogos, na mistura com a temporada atual
+  FORM15: 0.10,             // peso da forma nos últimos 15 dias
+  FORM30: 0.05,             // peso da forma nos últimos 30 dias
+  AVAIL_PRIOR: 20,          // peso da presença projetada, em jogos
+  // fator sobre os jogos previstos conforme a sequência atual de jogos perdidos
+  ABSENCE_BINS: ['nenhum', '1 a 2', '3 a 5', '6 a 10', '11 a 20', 'mais de 20'],
+  ABSENCE_FACTOR: [0.89, 0.81, 0.78, 0.83, 0.77, 1.00],
+  // fração dos jogos que conta na escalação, pela posição do jogador no elenco (1º ao 14º)
+  USAGE: [1, 1, 1, 0.99, 0.97, 0.96, 0.95, 0.93, 0.89, 0.87, 0.81, 0.77, 0.73, 0.68],
+  W_POINTS: 0.89,           // peso dos pontos contados
+  W_GAME: 5.7,              // custo por jogo contado
+  REPL_FA: [5, 10],         // custo da vaga: média da produção prevista do 5º ao 10º melhor free agent
+  SD_REF: 860,              // referência usada na calibração da margem de erro
+  // incerteza do valor: desvio padrão = a + b × valor, conforme o dia da temporada
+  SD: [{until:37, a:152, b:0.283}, {until:82, a:145, b:0.209}, {until:999, a:106, b:0.217}],
   SEASON_GAMES: 82,
-  POOL_LIMIT: 450,      // jogadores carregados, ordenados por % de posse na ESPN
+  POOL_LIMIT: 450,
   CACHE_HOURS: 6,
-  // id da estatística na ESPN : pontos
   SCORING: {0:1, 13:1, 14:-1, 15:1, 16:-1, 17:0.5, 4:0.5, 6:1, 3:1.5, 2:3, 1:2, 11:-1.5, 37:2, 38:3, 39:4}
 };
 const STAT_LABEL = {0:'PTS',13:'FGM',14:'FGA',15:'FTM',16:'FTA',17:'3PM',4:'OREB',6:'REB',3:'AST',2:'STL',1:'BLK',11:'TO',37:'DD',38:'TD',39:'QD'};
 const POS = ['PG','SG','SF','PF','C'];
 const OREB_DEFAULT = {PG:.07, SG:.09, SF:.14, PF:.22, C:.29};
+const OUT_STATUS = ['OUT','INJURY_RESERVE','SUSPENSION'];
 
 /* ===================== UTILITÁRIOS ===================== */
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const fmt0 = n => Math.round(n).toLocaleString('pt-BR');
 const fmt1 = n => n.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1});
+const fmtP = n => Math.round(n*100) + '%';
+const dec = n => String(n).replace('.',',');
 const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
 const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const store = {
@@ -290,61 +334,101 @@ async function copyText(txt){
   try{ await navigator.clipboard.writeText(txt); return true; }
   catch(e){ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); let ok=false; try{ ok=document.execCommand('copy'); }catch(_){} ta.remove(); return ok; }
 }
+function erf(x){ const s=Math.sign(x); x=Math.abs(x); const t=1/(1+0.3275911*x); return s*(1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496735)*t+0.254829592)*t*Math.exp(-x*x)); }
+const Phi = z => 0.5*(1+erf(z/Math.SQRT2));
 
 /* ===================== DADOS ESPN ===================== */
 const now = new Date();
 const SEASON = now.getMonth() >= 6 ? now.getFullYear()+1 : now.getFullYear();
 const BASE = `https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/${SEASON}`;
-const CACHE_KEY = `ratao-trade-v1-${SEASON}`;
+const PLAYERS_URL = `${BASE}/segments/0/leaguedefaults/3?view=kona_player_info`;
+const CACHE_KEY = `ratao-trade-v2-${SEASON}`;
 $('#seasonTag').textContent = `Temporada ${SEASON-1}-${String(SEASON).slice(2)}`;
+
+const KEEP = [...Object.keys(CONFIG.SCORING), '6', '42'];
+const compact = s => {
+  if(!s || !s.stats || !(s.stats['42'] > 0)) return null;
+  const t = {}; for(const k of KEEP) if(s.stats[k] != null) t[k] = s.stats[k];
+  return {t, gp:s.stats['42']};
+};
+const isPlayed = s => s && s.stats && s.stats['42'] > 0;
+
+async function fetchStreaks(ids, curPeriod){
+  // sequência atual de jogos perdidos, a partir do boletim jogo a jogo
+  const out = {};
+  for(let i=0; i<ids.length; i+=50){
+    const chunk = ids.slice(i, i+50);
+    const filter = {players:{filterIds:{value:chunk},
+      filterStatsForTopScoringPeriodIds:{value:45, additionalValue:[`00${SEASON}`]}}};
+    const r = await fetch(PLAYERS_URL, {headers:{'x-fantasy-filter':JSON.stringify(filter)}});
+    if(!r.ok) throw new Error('boletins '+r.status);
+    const j = await r.json();
+    for(const e of (j.players||[])){
+      const p = e.player || {};
+      const logs = (p.stats||[]).filter(s => s.statSplitTypeId===5 && s.seasonId===SEASON && s.scoringPeriodId < curPeriod)
+        .sort((a,b) => b.scoringPeriodId - a.scoringPeriodId);
+      let n = 0; for(const l of logs){ if(isPlayed(l)) break; n++; }
+      out[p.id] = n;
+    }
+  }
+  return out;
+}
 
 async function fetchESPN(){
   const filter = {players:{
     filterActive:{value:true}, limit:CONFIG.POOL_LIMIT,
     sortPercOwned:{sortPriority:1,sortAsc:false},
-    filterStatsForTopScoringPeriodIds:{value:1, additionalValue:[`00${SEASON}`,`10${SEASON}`,`00${SEASON-1}`]}
+    filterStatsForTopScoringPeriodIds:{value:1, additionalValue:[`00${SEASON}`,`10${SEASON}`,`01${SEASON}`,`02${SEASON}`,`03${SEASON}`,`00${SEASON-1}`]}
   }};
-  const [pr, sr] = await Promise.all([
-    fetch(`${BASE}/segments/0/leaguedefaults/3?view=kona_player_info`, {headers:{'x-fantasy-filter':JSON.stringify(filter)}}),
-    fetch(`${BASE}?view=proTeamSchedules_wl`)
+  const [pr, sr, gr] = await Promise.all([
+    fetch(PLAYERS_URL, {headers:{'x-fantasy-filter':JSON.stringify(filter)}}),
+    fetch(`${BASE}?view=proTeamSchedules_wl`),
+    fetch(BASE)
   ]);
   if(!pr.ok || !sr.ok) throw new Error(`ESPN respondeu ${pr.status}/${sr.status}`);
   const pj = await pr.json(), sj = await sr.json();
+  let curPeriod = 1; try{ const g = await gr.json(); curPeriod = (g.currentScoringPeriod && g.currentScoringPeriod.id) || 1; }catch(e){}
   const nowMs = Date.now();
   const teams = {};
   for(const t of (sj.settings && sj.settings.proTeams) || []){
-    let total=0, rem=0;
+    let total=0, rem=0, last7=0;
     for(const k in (t.proGamesByScoringPeriod||{})){
-      for(const g of t.proGamesByScoringPeriod[k]){ total++; if(!g.statsOfficial && g.date > nowMs - 3*3600e3) rem++; }
+      for(const g of t.proGamesByScoringPeriod[k]){
+        total++;
+        if(!g.statsOfficial && g.date > nowMs - 3*3600e3) rem++;
+        else if(g.date > nowMs - 7*864e5) last7++;
+      }
     }
-    teams[t.id] = {abbr:t.abbrev, total, rem};
+    teams[t.id] = {abbr:t.abbrev, total, rem, last7};
   }
   const pick = (stats,id) => (stats||[]).find(s => s.id === id);
-  const KEEP = [...Object.keys(CONFIG.SCORING), '6', '42'];
-  const compact = s => {
-    if(!s || !s.stats || !(s.stats['42'] > 0)) return null;
-    const t = {}; for(const k of KEEP) if(s.stats[k] != null) t[k] = s.stats[k];
-    return {t, gp:s.stats['42']};
-  };
   const players = (pj.players||[]).map(e => {
     const p = e.player || {};
     const elig = (p.eligibleSlots||[]).filter(x=>x<=4).map(x=>POS[x]);
     return {
       id:p.id, name:p.fullName, team:p.proTeamId, pos:POS[(p.defaultPositionId||1)-1] || '', elig,
       inj:p.injuryStatus || 'ACTIVE',
-      own:p.ownership ? p.ownership.percentOwned : 0,
       cur:compact(pick(p.stats,`00${SEASON}`)),
       proj:compact(pick(p.stats,`10${SEASON}`)),
-      prev:compact(pick(p.stats,`00${SEASON-1}`))
+      l7:compact(pick(p.stats,`01${SEASON}`)),
+      l15:compact(pick(p.stats,`02${SEASON}`)),
+      l30:compact(pick(p.stats,`03${SEASON}`)),
+      prev:compact(pick(p.stats,`00${SEASON-1}`)),
+      streak:0
     };
   }).filter(p => p.id && p.name);
-  return {at:nowMs, teams, players};
+  // boletins só para quem está lesionado ou não jogou nos últimos 7 dias tendo o time jogado
+  const need = players.filter(p => p.inj !== 'ACTIVE' || ((teams[p.team]||{}).last7 >= 2 && !p.l7)).map(p => p.id);
+  let streakOk = true;
+  if(need.length){
+    try{ const st = await fetchStreaks(need, curPeriod); for(const p of players) if(st[p.id] != null) p.streak = st[p.id]; }
+    catch(e){ console.error(e); streakOk = false; }
+  }
+  return {at:nowMs, curPeriod, teams, players, streakOk};
 }
 
 /* ===================== MODELO DE VALOR ===================== */
-// Probabilidade de um jogo com stat >= 10, aproximação normal
-function pTen(m){ if(m<=0) return 0; const sd=Math.max(1.6,0.42*m); const z=(9.5-m)/sd; return 1-0.5*(1+erf(z/Math.SQRT2)); }
-function erf(x){ const s=Math.sign(x); x=Math.abs(x); const t=1/(1+0.3275911*x); const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496735)*t+0.254829592)*t*Math.exp(-x*x); return s*y; }
+function pTen(m){ if(m<=0) return 0; const sd=Math.max(1.6,0.42*m); return 1-Phi((9.5-m)/sd); }
 function multiRates(avg){
   const ps=[0,6,3,2,1].map(k=>pTen(avg[k]||0));
   let dist=[1,0,0,0,0,0];
@@ -354,9 +438,9 @@ function multiRates(avg){
 }
 const perGame = s => { const a={}; for(const k in s.t) a[k]=s.t[k]/s.gp; return a; };
 function fpOf(avg){ let f=0; for(const k in CONFIG.SCORING) f += CONFIG.SCORING[k]*(avg[k]||0); return f; }
+const absenceBin = n => n===0?0 : n<=2?1 : n<=5?2 : n<=10?3 : n<=20?4 : 5;
 
 function evaluate(p, teams, avgRem){
-  const notes=[];
   const prevAvg = p.prev && p.prev.gp >= 10 ? perGame(p.prev) : null;
   let estimated = false;
   let projF=null, projAvail=null;
@@ -387,17 +471,25 @@ function evaluate(p, teams, avgRem){
   if(curF!=null && base!=null){ fppg = (gpA*curF + K*base)/(gpA+K); src = src==='Projeção ESPN' ? 'Projeção + atual' : 'Passada + atual'; }
   else if(curF!=null){ fppg = curF; src='Temporada atual'; }
   else fppg = base;
+  // forma recente
+  const blended = fppg;
+  if(p.l15 && p.l15.gp >= 3) fppg += CONFIG.FORM15 * (fpOf(perGame(p.l15)) - blended);
+  if(p.l30 && p.l30.gp >= 5) fppg += CONFIG.FORM30 * (fpOf(perGame(p.l30)) - blended);
 
   const tm = teams[p.team];
   const rem = tm && p.team ? tm.rem : avgRem;
   const played = tm && p.team ? Math.max(0, tm.total - tm.rem) : 0;
-  let avail = baseAvail!=null ? baseAvail : 0.75;
-  if(played>0) avail = (gpA + K*avail)/(played + K);
-  avail = Math.max(0.05, Math.min(1, avail));
-  return {fppg, src, estimated, avail, games: rem*avail, rem};
+  const pa = baseAvail!=null ? baseAvail : 0.75;
+  let avail = played>0 ? Math.min(1, (gpA + CONFIG.AVAIL_PRIOR*pa)/(played + CONFIG.AVAIL_PRIOR)) : pa;
+  const bin = absenceBin(p.streak||0);
+  avail *= CONFIG.ABSENCE_FACTOR[bin];
+  avail = Math.max(0.02, Math.min(1, avail));
+  return {fppg, src, estimated, avail, games: rem*avail, rem, absBin:bin};
 }
 
-let DATA=null, PLAYERS=[], BYID=new Map(), REPL=0;
+function sdParams(day){ return CONFIG.SD.find(s => day <= s.until) || CONFIG.SD[CONFIG.SD.length-1]; }
+
+let DATA=null, PLAYERS=[], BYID=new Map(), SLOT_COST=0;
 function buildModel(){
   const rems = Object.entries(DATA.teams).filter(([id])=>id!=='0').map(([,t])=>t.rem);
   const avgRem = rems.length ? rems.reduce((a,b)=>a+b,0)/rems.length : 70;
@@ -407,10 +499,25 @@ function buildModel(){
     if(!ev) continue;
     list.push(Object.assign({}, p, ev, {abbr: p.team && DATA.teams[p.team] ? DATA.teams[p.team].abbr : 'FA'}));
   }
-  list.sort((a,b)=>b.fppg-a.fppg);
-  const N = CONFIG.TEAMS*CONFIG.ROSTER;
-  REPL = list.length ? list[Math.min(N, list.length-1)].fppg : 0;
-  for(const p of list) p.value = Math.max(0, p.fppg - REPL) * p.games;
+  // posição típica no elenco pela produção total prevista
+  list.sort((a,b)=>b.fppg*b.games - a.fppg*a.games);
+  const sp = sdParams(DATA.curPeriod || 1);
+  const contrib = (p,u) => CONFIG.W_POINTS*p.fppg*p.games*u - CONFIG.W_GAME*p.games*u;
+  list.forEach((p,i)=>{
+    p.slot = Math.min(CONFIG.ROSTER, Math.floor(i/CONFIG.TEAMS)+1);
+    p.usage = CONFIG.USAGE[p.slot-1];
+    p.counted = p.games * p.usage;
+    p.contrib = contrib(p, p.usage);
+  });
+  // custo da vaga: o que os melhores free agents disponíveis devem render, sem informação do futuro
+  const N = CONFIG.TEAMS*CONFIG.ROSTER, uLast = CONFIG.USAGE[CONFIG.ROSTER-1];
+  let fa = list.slice(N + CONFIG.REPL_FA[0] - 1, N + CONFIG.REPL_FA[1]);
+  if(!fa.length) fa = list.slice(-5);
+  SLOT_COST = fa.reduce((a,p)=>a+contrib(p,uLast),0) / fa.length;
+  list.forEach(p=>{
+    p.value = Math.max(0, p.contrib - SLOT_COST);
+    p.sd = p.value > 0 ? sp.a + sp.b*Math.max(0, p.contrib - CONFIG.SD_REF*p.rem/CONFIG.SEASON_GAMES) : 0;
+  });
   list.sort((a,b)=>b.value-a.value || b.fppg-a.fppg);
   list.forEach((p,i)=>p.rank=i+1);
   PLAYERS=list; BYID=new Map(list.map(p=>[p.id,p]));
@@ -434,12 +541,13 @@ async function load(force){
   }catch(err){
     console.error(err);
     if(cached){ DATA=cached; afterLoad(true); }
-    else { setStatus('err',`Não foi possível carregar os dados da ESPN (${esc(err.message)}). Tente novamente em instantes.`); $('#refreshBtn').disabled=false; $('#rkBody').innerHTML='<tr><td colspan="9" class="loading">Sem dados</td></tr>'; }
+    else { setStatus('err',`Não foi possível carregar os dados da ESPN (${esc(err.message)}). Tente novamente em instantes.`); $('#refreshBtn').disabled=false; $('#rkBody').innerHTML='<tr><td colspan="10" class="loading">Sem dados</td></tr>'; }
   }
 }
 function afterLoad(stale){
   buildModel();
-  setStatus(stale?'err':'on', `${stale?'ESPN indisponível, usando dados salvos de ':'Dados ESPN de '}${stamp(DATA.at)}. ${PLAYERS.length} jogadores`);
+  const warn = DATA.streakOk === false ? ' Sequências de ausência indisponíveis nesta carga.' : '';
+  setStatus(stale?'err':'on', `${stale?'ESPN indisponível, usando dados salvos de ':'Dados ESPN de '}${stamp(DATA.at)}. ${PLAYERS.length} jogadores.${warn}`);
   $('#refreshBtn').disabled=false;
   renderCriteria(); renderRank(); restoreFromHash(); renderTrade();
 }
@@ -459,6 +567,7 @@ function addPlayer(side, id){
 }
 function removePlayer(side,id){ trade[side]=trade[side].filter(x=>x!==id); renderTrade(); }
 const sumVal = ids => ids.reduce((a,id)=>a+(BYID.get(id)?.value||0),0);
+const sumVar = ids => ids.reduce((a,id)=>a+Math.pow(BYID.get(id)?.sd||0,2),0);
 
 function renderTrade(){
   for(const side of ['A','B']){
@@ -466,7 +575,7 @@ function renderTrade(){
     ul.innerHTML = trade[side].map(id=>{
       const p = BYID.get(id); if(!p) return '';
       return `<li class="pl"><div><div class="nm">${esc(p.name)}${injBadge(p)}</div><div class="meta">${playerMeta(p)}</div></div>
-        <div class="val">${fmt0(p.value)}<small>valor</small></div>
+        <div class="val">${fmt0(p.value)}<small>± ${fmt0(p.sd)}</small></div>
         <button class="x" aria-label="Remover ${esc(p.name)}" data-rm="${side}:${p.id}">×</button></li>`;
     }).join('');
     $('#tot'+side).textContent = fmt0(sumVal(trade[side]));
@@ -481,33 +590,36 @@ function judge(){
   const sendA=sumVal(trade.A), sendB=sumVal(trade.B);
   const diff=Math.abs(sendA-sendB), big=Math.max(sendA,sendB);
   const pct = big>0 ? diff/big : 0;
-  let level = diff<=CONFIG.ABS_TOL || pct<=CONFIG.APPROVE_PCT ? 'ok' : pct<=CONFIG.REVIEW_PCT ? 'warn' : 'bad';
+  const sdD = Math.sqrt(sumVar(trade.A)+sumVar(trade.B));
+  const conf = diff===0 ? 0.5 : sdD>0 ? Phi(diff/sdD) : 1;
+  let level;
+  if(diff<=CONFIG.ABS_TOL || pct<=CONFIG.APPROVE_PCT) level='ok';
+  else if(pct>CONFIG.REVIEW_PCT && conf>=CONFIG.CONF_REJECT) level='bad';
+  else level='warn';
   const reasons=[];
   const winner = sendA>sendB ? nB : nA;
-  if(diff>0) reasons.push(`${winner} recebe ${fmt0(diff)} de valor a mais, diferença de ${fmt1(pct*100)}%.`);
+  if(diff>0) reasons.push(`${winner} recebe ${fmt0(diff)} de valor a mais, diferença de ${fmt1(pct*100)}%. A chance de ${winner} realmente sair ganhando, considerando a margem de erro do modelo, é de ${fmtP(conf)}.`);
   else reasons.push('Os dois lados entregam exatamente o mesmo valor.');
   if(diff<=CONFIG.ABS_TOL && pct>CONFIG.APPROVE_PCT) reasons.push(`A diferença absoluta é pequena, abaixo de ${CONFIG.ABS_TOL} pontos de valor, por isso a troca é aprovada mesmo com percentual maior.`);
-  const all=[...trade.A.map(id=>[BYID.get(id),nA]),...trade.B.map(id=>[BYID.get(id),nB])].filter(x=>x[0]);
-  const hurt = all.filter(([p])=>['OUT','INJURY_RESERVE','SUSPENSION'].includes(p.inj));
-  if(hurt.length){
-    reasons.push(`Envolve jogador fora de ação: ${hurt.map(([p])=>p.name).join(', ')}. O valor não desconta o tempo exato de afastamento, o LM deve conferir.`);
-    if(level==='ok') level='warn';
-  }
-  const dtd = all.filter(([p])=>p.inj==='DAY_TO_DAY');
-  if(dtd.length) reasons.push(`Jogador com status dia a dia: ${dtd.map(([p])=>p.name).join(', ')}.`);
-  const zero = all.filter(([p])=>p.value<=0);
-  if(zero.length) reasons.push(`Valor zero por estar no nível de reposição da waiver: ${zero.map(([p])=>p.name).join(', ')}.`);
-  const est = all.filter(([p])=>p.estimated);
-  if(est.length) reasons.push(`Rebote ofensivo ou bônus de double-double estimado estatisticamente: ${est.map(([p])=>p.name).join(', ')}.`);
+  if(pct>CONFIG.REVIEW_PCT && conf<CONFIG.CONF_REJECT) reasons.push(`A diferença passa de ${Math.round(CONFIG.REVIEW_PCT*100)}%, mas a margem de erro do modelo para esses jogadores é grande. Por isso a troca vai para análise e não é reprovada automaticamente.`);
+  const all=[...trade.A.map(id=>BYID.get(id)),...trade.B.map(id=>BYID.get(id))].filter(Boolean);
+  const hurt = all.filter(p=>OUT_STATUS.includes(p.inj));
+  if(hurt.length) reasons.push(`Jogador fora de ação: ${hurt.map(p=>p.name).join(', ')}. O valor já desconta a ausência pelo histórico de lesões, mas o LM deve conferir o prazo de retorno.`);
+  const dtd = all.filter(p=>p.inj==='DAY_TO_DAY');
+  if(dtd.length) reasons.push(`Jogador com status dia a dia: ${dtd.map(p=>p.name).join(', ')}.`);
+  const zero = all.filter(p=>p.value<=0);
+  if(zero.length) reasons.push(`Valor zero, equivalente a um free agent: ${zero.map(p=>p.name).join(', ')}.`);
+  const est = all.filter(p=>p.estimated);
+  if(est.length) reasons.push(`Rebote ofensivo ou bônus de double-double estimado estatisticamente: ${est.map(p=>p.name).join(', ')}.`);
   const dn = trade.B.length - trade.A.length;
-  if(dn!==0){ const rcv = dn>0 ? nA : nB; reasons.push(`${rcv} recebe ${Math.abs(dn)} jogador${Math.abs(dn)>1?'es':''} a mais e precisará liberar vaga${Math.abs(dn)>1?'s':''} no elenco.`); }
+  if(dn!==0){ const rcv = dn>0 ? nA : nB; const n=Math.abs(dn); reasons.push(`${rcv} recebe ${n} jogador${n>1?'es':''} a mais e precisará liberar vaga${n>1?'s':''}. O custo de cada vaga já está descontado no valor dos jogadores.`); }
   const label = {ok:'Aprovada', warn:'Análise do LM', bad:'Reprovada'}[level];
   const text = {
     ok:'A troca está dentro do equilíbrio de valor exigido pela liga.',
     warn:'A troca não é automática. O LM precisa avaliar antes de aceitar.',
-    bad:`A diferença de valor passa de ${Math.round(CONFIG.REVIEW_PCT*100)}%. A troca não deve ser aceita como está.`
+    bad:`A diferença de valor passa de ${Math.round(CONFIG.REVIEW_PCT*100)}% com pelo menos ${fmtP(CONFIG.CONF_REJECT)} de confiança. A troca não deve ser aceita como está.`
   }[level];
-  return {nA,nB,sendA,sendB,diff,pct,level,label,text,reasons};
+  return {nA,nB,sendA,sendB,diff,pct,conf,level,label,text,reasons};
 }
 
 function renderResult(){
@@ -520,6 +632,7 @@ function renderResult(){
   const tot=j.sendA+j.sendB || 1;
   $('#barA').style.width=(j.sendA/tot*100)+'%'; $('#barB').style.width=(j.sendB/tot*100)+'%';
   $('#barlA').textContent=`${j.nA} envia ${fmt0(j.sendA)}`; $('#barlB').textContent=`${j.nB} envia ${fmt0(j.sendB)}`;
+  $('#conf').innerHTML = j.diff>0 ? `Diferença de <b>${fmt1(j.pct*100)}%</b>. Confiança estatística de <b>${fmtP(j.conf)}</b>.` : '';
   $('#reasons').innerHTML=j.reasons.map(r=>`<li>${esc(r)}</li>`).join('');
 }
 
@@ -592,25 +705,29 @@ function renderRank(){
   rows.sort((a,b)=>{ const x=a[k], y=b[k]; return (typeof x==='string' ? x.localeCompare(y) : x-y)*d; });
   $('#rkBody').innerHTML = rows.map(p=>`<tr>
     <td class="n">${p.rank}</td><td><b>${esc(p.name)}</b>${injBadge(p)}</td><td>${esc(p.abbr)}</td><td class="hide-m">${esc(p.elig.join('/')||p.pos)}</td>
-    <td class="n">${fmt1(p.fppg)}</td><td class="n hide-m">${fmt1(p.games)}</td><td class="n"><b>${fmt0(p.value)}</b></td>
+    <td class="n">${fmt1(p.fppg)}</td><td class="n hide-m">${fmt1(p.counted)}</td><td class="n"><b>${fmt0(p.value)}</b></td><td class="n hide-m src">± ${fmt0(p.sd)}</td>
     <td class="hide-m src">${esc(p.src)}${p.estimated?', est.':''}</td>
     <td><button class="add" data-add="A:${p.id}" title="Adicionar ao ${esc($('#nameA').value)}">+A</button> <button class="add" data-add="B:${p.id}" title="Adicionar ao ${esc($('#nameB').value)}">+B</button></td></tr>`).join('')
-    || '<tr><td colspan="9" class="loading">Nenhum jogador</td></tr>';
+    || '<tr><td colspan="10" class="loading">Nenhum jogador</td></tr>';
   $$('[data-add]').forEach(b=>b.onclick=()=>{ const [s,id]=b.dataset.add.split(':'); addPlayer(s,+id); toast(`${BYID.get(+id).name} adicionado`); });
 }
 $('#rkSearch').addEventListener('input',renderRank); $('#rkPos').addEventListener('change',renderRank);
-$$('th[data-sort]').forEach(th=>th.onclick=()=>{ const k=th.dataset.sort; rkSort = {k, dir: rkSort.k===k ? -rkSort.dir : (['name','team','pos'].includes(k)?1:-1)}; if(k==='team') rkSort.k='abbr'; renderRank(); });
+$$('th[data-sort]').forEach(th=>th.onclick=()=>{ let k=th.dataset.sort; if(k==='team') k='abbr'; rkSort = {k, dir: rkSort.k===k ? -rkSort.dir : (['name','abbr','pos'].includes(k)?1:-1)}; renderRank(); });
 
 /* ===================== CRITÉRIOS ===================== */
 function renderCriteria(){
-  $('#scoreGrid').innerHTML = Object.entries(CONFIG.SCORING).map(([id,v])=>`<div><span>${STAT_LABEL[id]}</span><b class="${v<0?'neg':''}">${v>0?'+':''}${String(v).replace('.',',')}</b></div>`).join('');
-  const ap=Math.round(CONFIG.APPROVE_PCT*100), rv=Math.round(CONFIG.REVIEW_PCT*100);
+  $('#scoreGrid').innerHTML = Object.entries(CONFIG.SCORING).map(([id,v])=>`<div><span>${STAT_LABEL[id]}</span><b class="${v<0?'neg':''}">${v>0?'+':''}${dec(v)}</b></div>`).join('');
+  const ap=Math.round(CONFIG.APPROVE_PCT*100), rv=Math.round(CONFIG.REVIEW_PCT*100), cf=fmtP(CONFIG.CONF_REJECT);
   $('#thBox').innerHTML = `<div style="background:var(--ok-bg);color:var(--ok)">Aprovada, diferença até ${ap}%</div>
-    <div style="background:var(--warn-bg);color:var(--warn)">Análise do LM, diferença entre ${ap}% e ${rv}%</div>
-    <div style="background:var(--bad-bg);color:var(--bad)">Reprovada, diferença acima de ${rv}%</div>`;
-  const N=CONFIG.TEAMS*CONFIG.ROSTER;
-  $('#replN').textContent = `${N} do ranking, hoje com ${fmt1(REPL)} FPPG`;
-  $('#premise').textContent = `A liga é tratada como redraft, com ${CONFIG.TEAMS} times e ${CONFIG.ROSTER} vagas por elenco, o que dá ${N} jogadores escalados. Esses números definem o nível de reposição e podem ser ajustados no início do código.`;
+    <div style="background:var(--warn-bg);color:var(--warn)">Análise do LM, diferença acima de ${ap}% sem atingir o critério de reprovação</div>
+    <div style="background:var(--bad-bg);color:var(--bad)">Reprovada, diferença acima de ${rv}% com confiança de pelo menos ${cf}</div>`;
+  $('#formula').textContent = `Valor = ${dec(CONFIG.W_POINTS)} × pontos contados − ${dec(CONFIG.W_GAME)} × jogos contados − custo da vaga`;
+  $('#slotCost').textContent = fmt0(SLOT_COST);
+  const half = (s,e) => '<tr><th>Posição</th>'+CONFIG.USAGE.slice(s,e).map((_,i)=>`<th class="n">${s+i+1}º</th>`).join('')+'</tr><tr><td>Contam</td>'+CONFIG.USAGE.slice(s,e).map(u=>`<td class="n">${fmtP(u)}</td>`).join('')+'</tr>';
+  $('#usageTbl').innerHTML = half(0,7) + half(7,14);
+  $('#absTbl').innerHTML = '<tr><th>Jogos perdidos em sequência</th><th class="n">Fator</th></tr>'+CONFIG.ABSENCE_BINS.map((b,i)=>`<tr><td>${b}</td><td class="n">${dec(CONFIG.ABSENCE_FACTOR[i].toFixed(2))}</td></tr>`).join('');
+  const sp = sdParams(DATA.curPeriod||1);
+  $('#sdNow').textContent = `${sp.a} + ${dec(sp.b)} × valor`;
 }
 
 /* Abas */
