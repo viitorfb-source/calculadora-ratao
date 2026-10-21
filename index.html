@@ -293,12 +293,13 @@ footer{margin:28px 0 30px;color:var(--muted);font-size:13px;text-align:center}
         <code class="f">Valor = valor desta temporada + soma dos excedentes das 4 temporadas seguintes</code>
         <p><b>Valor desta temporada</b> é o mesmo do modo redraft, com a mesma pontuação e os mesmos parâmetros.</p>
         <p><b>Excedente</b> é o valor previsto do jogador naquela temporada acima do <span id="keeperLine"></span>º jogador, a linha de corte dos keepers. Quem fica abaixo da linha volta ao draft e não tem valor futuro para o dono atual.</p>
-        <p><b>Projeção futura</b> parte do FPPG atual e aplica a fração da produção que jogadores da mesma idade mantiveram no histórico da ESPN, de 2019-20 a 2025-26, na pontuação da liga. A medição inclui os jogadores que saíram da liga, então já embute evolução, declínio, lesões e aposentadorias até os 38 anos:</p>
+        <p><b>Projeção futura</b> parte do FPPG atual e aplica a fração da produção que jogadores com a mesma idade, o mesmo nível e a mesma durabilidade mantiveram no histórico da ESPN, de 2019-20 a 2025-26, na pontuação da liga. A medição inclui os jogadores que saíram da liga, então já embute evolução, declínio, lesões e aposentadorias até os 38 anos.</p>
+        <p>Jogadores melhores envelhecem mais devagar, porque perdem menos espaço no time. Jogadores frágeis, medidos pelos jogos que a ESPN projeta para eles, rendem menos nos anos seguintes, em qualquer idade. Esse efeito foi suavizado para 75% do medido, por decisão da liga, sem perda relevante de precisão. A partir dos 26 anos, a produção esperada nunca aumenta com a idade. A posição foi testada e descartada, porque o efeito dos pivôs não se repetiu entre as temporadas. Exemplos com 72 jogos projetados para o durável e 60 para o frágil:</p>
         <div class="tblmini"><table id="ageTbl"></table></div>
         <p>Como a curva mede a produção que de fato aconteceu, não há desconto adicional entre temporadas. A incerteza cresce com o tempo e entra na margem de erro.</p>
         <p><b>Aposentadoria acima dos 38 anos.</b> Nessa faixa não há histórico suficiente, então aplica-se uma premissa, acumulada ano a ano:</p>
         <div class="tblmini"><table id="retTbl"></table></div>
-        <p><b>Jovens e calouros</b> usam o ranking dynasty externo, convertido para a escala de valor da liga. O peso do ranking diminui conforme o jogador acumula jogos na NBA.</p>
+        <p><b>Ranking dos analistas.</b> O valor futuro combina o modelo estatístico com o ranking dynasty externo, convertido para a escala da liga. O ranking pesa no mínimo <span id="hbMin"></span> para todos, como meio termo entre os dados e a opinião dos analistas, e pesa mais para jovens e calouros, conforme a pouca amostra na NBA.</p>
         <p><b>Escolhas de draft</b> valem o jogador que estaria disponível naquela posição, entre os não mantidos e a classe de calouros. A ordem do draft é por classificação inversa, então sem a posição informada usa-se a média da rodada.</p>
         <p class="src" id="hbInfo"></p>
       </div>
@@ -349,14 +350,22 @@ const CONFIG = {
     MAX_ROUNDS: 6,
     HORIZON: 4,                        // temporadas futuras além da atual, horizonte total de 5
     // produção total esperada daqui a k temporadas, em fração de FPPG atual × 61 jogos,
-    // pela idade de hoje: c0 + c1·z + c2·z², z = (idade − 26) / 5, idade limitada a 19 a 38.
-    // Medida em 2019-20 a 2025-26 com idades da ESPN, incluindo jogadores que saíram da liga,
-    // então já embute evolução, declínio, lesões e aposentadorias até os 38 anos.
-    PROD: {1:[0.8944,-0.1352,0.0096], 2:[0.8325,-0.2061,0.0123], 3:[0.7692,-0.2576,0.0203], 4:[0.6676,-0.3013,0.0324]},
+    // pela idade, pelo nível e pela durabilidade de hoje: c0 + c1·z + c2·z² + c3·max(0,z)·t + c4·g,
+    // z = (idade − 26) / 5, idade limitada a 19 a 38; t = (FPPG − 22) / 6, FPPG limitado a 12 a 32;
+    // g = (jogos projetados pela ESPN, na escala de 78 − 65) / 10, limitado a 60 a 78 jogos.
+    // Medida em 2019-20 a 2025-26 com idades da ESPN, incluindo jogadores que saíram da liga.
+    // Jogadores melhores envelhecem mais devagar e jogadores frágeis rendem menos nos anos seguintes.
+    // Testada e descartada: diferença por posição (o efeito dos pivôs não se repetiu entre temporadas).
+    PROD: {1:[0.7562,-0.1294,0.0095,0.0967,0.2125], 2:[0.6862,-0.1955,0.0116,0.1365,0.2212], 3:[0.6042,-0.2499,0.0225,0.1426,0.2323], 4:[0.4296,-0.2824,0.0467,0.1140,0.3106]},
+    PROD_FPPG_CAP: 32,
+    // WEIGHT suaviza o efeito em direção à média do histórico (MEAN, cerca de 71 jogos); 75% foi escolha da liga,
+    // e no histórico a precisão com 50% a 100% do efeito é praticamente a mesma
+    DUR: {MIN:60, MAX:78, CENTER:65, SCALE:10, REF:78, MEAN:0.63, WEIGHT:0.75},
     GAMES: 61,
     HB_PRIOR_GAMES: 40,                // peso do ranking externo, em jogos de NBA do jogador
+    HB_MIN: 0.20,                      // peso mínimo do ranking externo no valor futuro de todos
     // erro típico da produção prevista, em pontos da temporada: a + b × produção prevista
-    SD_FUT: {1:[397,0.174], 2:[462,0.192], 3:[503,0.216], 4:[523,0.256]},
+    SD_FUT: {1:[448,0.096], 2:[451,0.156], 3:[446,0.213], 4:[421,0.303]},
     // a partir dos 39 anos não há histórico: chance de não jogar a temporada, premissa
     RETIRE: {39:0.25, 40:0.35, 41:0.50, 42:0.65},
     API: '/api/hashtag',
@@ -602,10 +611,19 @@ function buildModel(){
 let HB=null, KP={ready:false};
 // a partir dos 39 anos não há histórico: premissa de aposentadoria por temporada
 const retireProb = age => { if(age==null || age < 39) return 0; const R = CONFIG.KEEPER.RETIRE, a = Math.min(42, Math.floor(age)); return R[a] != null ? R[a] : 0; };
-// fração da produção atual esperada daqui a k temporadas, com a premissa de aposentadoria acima de 38
-const prodFactor = (k, age) => {
-  const c = CONFIG.KEEPER.PROD[k], a = age==null ? 26 : age, z = (Math.min(38, Math.max(19, a)) - 26)/5;
-  let f = Math.max(0.03, c[0] + c[1]*z + c[2]*z*z);
+// fração da produção atual esperada daqui a k temporadas, pela idade e pelo nível, com a premissa de aposentadoria acima de 38
+// durabilidade: jogos projetados pela ESPN na escala de uma temporada cheia; ref = percentil 95 da temporada
+const durIndex = (games, ref) => { const D = CONFIG.KEEPER.DUR; if(games==null) return D.MEAN;
+  const g = games/(ref||D.REF)*D.REF, x = (Math.min(D.MAX, Math.max(D.MIN, g)) - D.CENTER)/D.SCALE;
+  return D.MEAN + D.WEIGHT*(x - D.MEAN); };
+const prodFactor = (k, age, fppg, dur) => {
+  const K = CONFIG.KEEPER, c = K.PROD[k], a = age==null ? 26 : age, z = (Math.min(38, Math.max(19, a)) - 26)/5;
+  const t = (Math.min(K.PROD_FPPG_CAP, Math.max(12, fppg==null ? 22 : fppg)) - 22)/6, g = dur==null ? 0 : dur;
+  const raw = x => c[0] + c[1]*x + c[2]*x*x + c[3]*Math.max(0,x)*t + c[4]*g;
+  // a partir dos 26 anos a produção esperada nunca aumenta com a idade: menor valor entre 26 anos e a idade atual
+  let r = raw(z);
+  if(z > 0){ const cand = [0, z]; if(c[2] > 0){ const zv = -(c[1] + c[3]*t)/(2*c[2]); if(zv > 0 && zv < z) cand.push(zv); } r = Math.min(...cand.map(raw)); }
+  let f = Math.max(0.03, r);
   for(let j=1;j<=k;j++) f *= 1 - retireProb(a + j);
   return f;
 };
@@ -625,11 +643,15 @@ function buildKeeper(){
     const h = pickOne(hbBy.get(NAME_ALIAS[k] || k), p) || pickOne((hbShort.get(shortKey(p.name))||[]).filter(x=>sameFirst(x.name, p.name)), p);
     p.age = h ? h.age : null; p.hbRank = h ? h.rank : null; if(h) matched++;
   }
+  // durabilidade de cada jogador, pelos jogos projetados pela ESPN para a temporada
+  const pg = list.filter(p=>p.proj).map(p=>p.proj.gp).sort((a,b)=>a-b);
+  const ref = pg.length ? pg[Math.floor(0.95*(pg.length-1))] : K.DUR.REF;
+  for(const p of list){ const games = p.proj ? p.proj.gp/ref*K.DUR.REF : (p.prev ? Math.min(82, p.prev.gp) : null); p.durGames = games; p.dur = durIndex(games, K.DUR.REF); }
   // projeção das próximas temporadas, temporada completa
   const H = K.HORIZON, N120 = K.KEEPERS*CONFIG.TEAMS;
   const fut = [];
   for(let k=1;k<=H;k++){
-    const sv = seasonValues(list, p=>p.fppg*prodFactor(k,p.age), ()=>K.GAMES);
+    const sv = seasonValues(list, p=>p.fppg*prodFactor(k,p.age,p.fppg,p.dur), ()=>K.GAMES);
     const V = list.map((p,i)=>Math.max(0, sv.contrib[i].c - sv.slot));
     const line = [...V].sort((a,b)=>b-a)[N120-1] || 0;
     fut.push({V, line});
@@ -639,7 +661,7 @@ function buildKeeper(){
     p.V1 = fut[0].V[i];
     p.fMod = p.Sk.reduce((a,b)=>a+b,0);
     // margem de erro de cada temporada futura com excedente
-    p.sdFut = p.Sk.map((sk,j)=>{ if(sk<=0) return 0; const c=K.SD_FUT[j+1]; return 0.87*(c[0] + c[1]*p.fppg*prodFactor(j+1,p.age)*K.GAMES); });
+    p.sdFut = p.Sk.map((sk,j)=>{ if(sk<=0) return 0; const c=K.SD_FUT[j+1]; return 0.87*(c[0] + c[1]*p.fppg*prodFactor(j+1,p.age,p.fppg,p.dur)*K.GAMES); });
     p.surv1 = 1 - retireProb(p.age!=null ? p.age+1 : null);
   });
   // conversão do ranking externo: a posição r recebe o valor que o modelo dá ao r-ésimo jogador
@@ -658,7 +680,7 @@ function buildKeeper(){
   list.forEach(p=>{
     // experiência estimada: jogos recentes mais cerca de 80 jogos por ano acima dos 22
     const nEff = p.nbaGames + 80*Math.max(0, (p.age!=null ? p.age : 26) - 22);
-    const w = (map && p.hbRank) ? K.HB_PRIOR_GAMES/(K.HB_PRIOR_GAMES + nEff) : 0;
+    const w = (map && p.hbRank) ? Math.max(K.HB_MIN, K.HB_PRIOR_GAMES/(K.HB_PRIOR_GAMES + nEff)) : 0;
     const fH = p.hbRank ? Math.max(0, kvMap(p.hbRank) - p.value) : 0;
     p.hbW = w;
     p.fut = (1-w)*p.fMod + w*fH;
@@ -876,6 +898,8 @@ function judge(){
     if(young.length) reasons.push(`Valor futuro baseado principalmente no ranking dynasty externo, por pouca amostra na NBA: ${young.map(p=>p.name).join(', ')}.`);
     const old = all.filter(p=>p.age!=null && p.age>=34);
     if(old.length) reasons.push(`O valor futuro de ${old.map(p=>p.name).join(', ')} considera o declínio e a chance de saída da liga medidos no histórico${old.some(p=>p.surv1<1)?'. Acima dos 38 anos, onde não há histórico, soma-se uma premissa de aposentadoria':''}.`);
+    const frag = all.filter(p=>p.durGames!=null && p.durGames<66);
+    if(frag.length) reasons.push(`Histórico de lesões reduz o valor futuro: ${frag.map(p=>`${p.name}, ${Math.round(p.durGames)} jogos projetados`).join('; ')}. No histórico, jogadores com menos de 66 jogos projetados renderam bem menos nas temporadas seguintes.`);
     const noAge = all.filter(p=>p.age==null);
     if(noAge.length) reasons.push(`Idade não encontrada no ranking dynasty, projeção futura sem ajuste de idade: ${noAge.map(p=>p.name).join(', ')}.`);
     if(picks.some(i=>i.pk.year>SEASON)) reasons.push('Escolhas de anos seguintes usam a mesma curva do próximo draft, porque a força dessas classes ainda é desconhecida. A margem de erro é maior.');
@@ -1053,8 +1077,10 @@ function renderCriteria(){
   // modo keeper
   const K = CONFIG.KEEPER;
   const ages=[20,22,24,26,28,30,32,34,36];
+  const rows = (lv, gm, lbl) => [1,3].map(k=>`<tr><td>${lbl}, daqui a ${k} ${k>1?'anos':'ano'}</td>`+ages.map(a=>`<td class="n">${fmtP(prodFactor(k,a,lv,durIndex(gm)))}</td>`).join('')+'</tr>').join('');
   $('#ageTbl').innerHTML = '<tr><th>Idade hoje</th>'+ages.map(a=>`<th class="n">${a}</th>`).join('')+'</tr>'
-    + [1,2,3,4].map(k=>`<tr><td>Daqui a ${k} ${k>1?'anos':'ano'}</td>`+ages.map(a=>`<td class="n">${fmtP(prodFactor(k,a))}</td>`).join('')+'</tr>').join('');
+    + rows(20,72,'Reserva durável') + rows(32,72,'Titular durável') + rows(32,60,'Titular frágil');
+  $('#hbMin').textContent = fmtP(K.HB_MIN);
   $('#keeperLine').textContent = K.KEEPERS*CONFIG.TEAMS;
   $('#retTbl').innerHTML = '<tr><th>Idade no início da temporada</th>'+Object.keys(K.RETIRE).map(a=>`<th class="n">${a}${+a===42?'+':''}</th>`).join('')+'</tr><tr><td>Chance de não jogar</td>'+Object.values(K.RETIRE).map(v=>`<td class="n">${fmtP(v)}</td>`).join('')+'</tr>';
   $('#hbInfo').textContent = !KP.ready ? '' : KP.hbOk
