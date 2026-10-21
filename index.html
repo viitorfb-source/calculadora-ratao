@@ -124,6 +124,8 @@ body[data-mode="redraft"] .keeper-only{display:none !important}
 .pickform select{border:1.5px solid var(--line);border-radius:8px;padding:7px 8px;background:var(--bg);font-size:14px;flex:1;min-width:110px}
 .btn.sm{padding:7px 12px;font-size:14px}
 .pl.pk{background:var(--warn-bg)}
+.profrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:-2px 0 10px;font-size:14px;font-weight:600;color:var(--muted)}
+.profrow select{border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--bg);font-weight:600;color:var(--ink)}
 .picksbox{margin-bottom:14px}
 .crit .box.wide{grid-column:1/-1}
 
@@ -208,6 +210,7 @@ footer{margin:28px 0 30px;color:var(--muted);font-size:13px;text-align:center}
     <div class="sides">
       <div class="side a" data-side="A">
         <div class="side-h"><input id="nameA" value="Time A" aria-label="Nome do time A" maxlength="30"><small>envia</small></div>
+        <label class="profrow keeper-only">Perfil do time <select class="prof" id="profA" aria-label="Perfil do time A"></select></label>
         <div class="search"><input placeholder="Buscar jogador..." autocomplete="off" data-side="A"><div class="sugg"></div></div>
         <div class="pickadd keeper-only" data-side="A"><button type="button" class="linkbtn" data-open>+ Escolha de draft</button>
           <div class="pickform"><select class="pkY" aria-label="Ano"></select><select class="pkR" aria-label="Rodada"></select><select class="pkP" aria-label="Posição na rodada"></select><button type="button" class="btn orange sm" data-add-pick>Adicionar</button></div></div>
@@ -217,6 +220,7 @@ footer{margin:28px 0 30px;color:var(--muted);font-size:13px;text-align:center}
       <button class="swap" id="swapBtn" title="Inverter lados" aria-label="Inverter lados">⇄</button>
       <div class="side b" data-side="B">
         <div class="side-h"><input id="nameB" value="Time B" aria-label="Nome do time B" maxlength="30"><small>envia</small></div>
+        <label class="profrow keeper-only">Perfil do time <select class="prof" id="profB" aria-label="Perfil do time B"></select></label>
         <div class="search"><input placeholder="Buscar jogador..." autocomplete="off" data-side="B"><div class="sugg"></div></div>
         <div class="pickadd keeper-only" data-side="B"><button type="button" class="linkbtn" data-open>+ Escolha de draft</button>
           <div class="pickform"><select class="pkY" aria-label="Ano"></select><select class="pkR" aria-label="Rodada"></select><select class="pkP" aria-label="Posição na rodada"></select><button type="button" class="btn orange sm" data-add-pick>Adicionar</button></div></div>
@@ -285,6 +289,7 @@ footer{margin:28px 0 30px;color:var(--muted);font-size:13px;text-align:center}
         <h3>Como os pesos foram calibrados</h3>
         <p>Todos os parâmetros foram medidos com as temporadas 2024-25 e 2025-26, com cerca de 800 jogadores. Os pesos foram ajustados em uma temporada e validados na outra.</p>
         <p>A mistura entre projeção e temporada atual erra em média 3,0 pontos por jogo no restante da temporada, contra 3,6 da projeção pura da ESPN. Os fatores de ausência eliminaram um viés de 5 jogos a mais por jogador.</p>
+        <p class="src" id="paramsInfo"></p>
         <p>O uso do elenco e os pesos de pontos e jogos vêm de uma simulação dia a dia da temporada com 12 times, 7 titulares, 7 reservas e até 10 contratações por semana. A fórmula explica de 79% a 91% do valor simulado de cada jogador.</p>
         <p>O custo da vaga não é fixo porque a simulação mostrou que ele depende muito de como os managers usam a waiver. Por isso é calculado com os free agents de cada momento.</p>
       </div>
@@ -301,6 +306,8 @@ footer{margin:28px 0 30px;color:var(--muted);font-size:13px;text-align:center}
         <div class="tblmini"><table id="retTbl"></table></div>
         <p><b>Ranking dos analistas.</b> O valor futuro combina o modelo estatístico com o ranking dynasty externo, convertido para a escala da liga. O ranking pesa no mínimo <span id="hbMin"></span> para todos, como meio termo entre os dados e a opinião dos analistas, e pesa mais para jovens e calouros, conforme a pouca amostra na NBA.</p>
         <p><b>Escolhas de draft</b> valem o jogador que estaria disponível naquela posição, entre os não mantidos e a classe de calouros. A ordem do draft é por classificação inversa, então sem a posição informada usa-se a média da rodada.</p>
+        <p><b>Perfil do time.</b> Cada lado pode se declarar em Disputa, Neutro ou Reconstrução. O perfil muda o peso de cada temporada, e cada time é avaliado pela própria ótica: o que recebe menos o que entrega. O parecer segue o lado que mais perde, e a ótica neutra fica sempre visível para o LM. Pesos por temporada, da atual até daqui a 4 anos:</p>
+        <div class="tblmini"><table id="profTbl"></table></div>
         <p class="src" id="hbInfo"></p>
       </div>
       <div class="box">
@@ -313,7 +320,7 @@ footer{margin:28px 0 30px;color:var(--muted);font-size:13px;text-align:center}
     </div>
   </section>
 
-  <footer>Liga Ratão Fantasy. Calculadora de Trocas com dados da ESPN Fantasy Basketball.</footer>
+  <footer>Liga Ratão Fantasy. Calculadora de Trocas com dados da ESPN Fantasy Basketball. <span id="appVersion">Versão de 21/10/2026, perfis de time e parâmetros automáticos</span></footer>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -369,7 +376,13 @@ const CONFIG = {
     // a partir dos 39 anos não há histórico: chance de não jogar a temporada, premissa
     RETIRE: {39:0.25, 40:0.35, 41:0.50, 42:0.65},
     API: '/api/hashtag',
-    CACHE_HOURS: 12
+    CACHE_HOURS: 12,
+    // peso de cada temporada por perfil de time: atual, +1, +2, +3, +4 (escolha da liga, não estatística)
+    PROFILES: {
+      neutro:       {label:'Neutro',       w:[1.0, 1.0, 1.0, 1.0, 1.0]},
+      disputa:      {label:'Disputa',      w:[1.5, 1.0, 0.6, 0.4, 0.25]},
+      reconstrucao: {label:'Reconstrução', w:[0.5, 1.0, 1.0, 1.0, 1.0]}
+    }
   }
 };
 const STAT_LABEL = {0:'PTS',13:'FGM',14:'FGA',15:'FTM',16:'FTA',17:'3PM',4:'OREB',6:'REB',3:'AST',2:'STL',1:'BLK',11:'TO',37:'DD',38:'TD',39:'QD'};
@@ -682,7 +695,7 @@ function buildKeeper(){
     const nEff = p.nbaGames + 80*Math.max(0, (p.age!=null ? p.age : 26) - 22);
     const w = (map && p.hbRank) ? Math.max(K.HB_MIN, K.HB_PRIOR_GAMES/(K.HB_PRIOR_GAMES + nEff)) : 0;
     const fH = p.hbRank ? Math.max(0, kvMap(p.hbRank) - p.value) : 0;
-    p.hbW = w;
+    p.hbW = w; p.fH = fH;
     p.fut = (1-w)*p.fMod + w*fH;
     p.kv = p.value + p.fut;
     const fs = p.sdFut.reduce((a,x)=>a+x*x,0);
@@ -722,6 +735,33 @@ function pickValue(year, round, pos){
   const sd = Math.sqrt(base*base*(1+off) + spread*spread);
   return {value:v, sd};
 }
+
+/* ===================== PERFIS DE TIME ===================== */
+const PROF = () => CONFIG.KEEPER.PROFILES;
+const profW = k => (PROF()[k] || PROF().neutro).w;
+const mean = a => a.reduce((x,y)=>x+y,0)/a.length;
+// valor de um jogador pela ótica de um perfil
+function playerProfValue(p, prof){
+  const W = profW(prof);
+  if(!isKeeper() || prof==='neutro') return {value:p.kv, sd:p.kvSd};
+  const Sk = p.Sk || [0,0,0,0], w = p.hbW || 0;
+  const futW = Sk.reduce((a,s,i)=>a+W[i+1]*s,0);
+  const avgW = p.fMod>0 ? futW/p.fMod : mean(W.slice(1));
+  const v = W[0]*p.value + (1-w)*futW + w*(p.fH||0)*avgW;
+  return {value:v, sd: p.kv>0 ? p.kvSd*Math.max(0.3, v/p.kv) : p.kvSd};
+}
+// escolha do draft de um ano rende a partir da temporada seguinte a ele
+function pickProfFactor(year, prof){
+  const W = profW(prof), off = Math.max(0, year - SEASON);
+  const ws = W.slice(1+off); return ws.length ? mean(ws) : W[W.length-1];
+}
+function itemInfoProf(it, prof){
+  const i = itemInfo(it); if(!i) return null;
+  if(!isKeeper() || prof==='neutro') return i;
+  if(i.pick){ const f = pickProfFactor(i.pk.year, prof); return Object.assign({}, i, {value:i.value*f, sd:i.sd*f}); }
+  const pv = playerProfValue(i.p, prof); return Object.assign({}, i, {value:pv.value, sd:pv.sd});
+}
+const getProf = side => { const el = $('#prof'+side); const v = el && el.value; return isKeeper() && PROF()[v] ? v : 'neutro'; };
 
 /* ===================== MODO E ITENS ===================== */
 let MODE = 'redraft';
@@ -866,7 +906,49 @@ function renderTrade(){
   updateHash();
 }
 
+// avaliação de cada time pela própria ótica: o que recebe menos o que entrega, com os pesos do seu perfil
+function lensEval(side, prof){
+  const other = side==='A' ? 'B' : 'A';
+  const vals = items => items.map(it=>itemInfoProf(it, prof)).filter(Boolean);
+  const sent = vals(trade[side]), recv = vals(trade[other]);
+  const s = sent.reduce((a,i)=>a+i.value,0), r = recv.reduce((a,i)=>a+i.value,0);
+  const loss = Math.max(0, s - r), big = Math.max(s, r);
+  const sd = Math.sqrt([...sent,...recv].reduce((a,i)=>a+i.sd*i.sd,0));
+  return {side, prof, sent:s, recv:r, net:r-s, loss, pct: big>0 ? loss/big : 0, conf: loss===0 ? 0.5 : sd>0 ? Phi(loss/sd) : 1};
+}
+function levelOf(loss, pct, conf){
+  if(loss<=CONFIG.ABS_TOL || pct<=CONFIG.APPROVE_PCT) return 'ok';
+  if(pct>CONFIG.REVIEW_PCT && conf>=CONFIG.CONF_REJECT) return 'bad';
+  return 'warn';
+}
 function judge(){
+  const j = judgeNeutral();
+  const pA = getProf('A'), pB = getProf('B');
+  j.pA = pA; j.pB = pB;
+  if(!isKeeper() || (pA==='neutro' && pB==='neutro')) return j;
+  const lA = lensEval('A', pA), lB = lensEval('B', pB);
+  const worst = lA.pct >= lB.pct ? lA : lB;
+  const level = levelOf(worst.loss, worst.pct, worst.conf);
+  const nm = s => s==='A' ? j.nA : j.nB, pl = k => PROF()[k].label;
+  const lensTxt = l => l.net>=0
+    ? `Na ótica de ${nm(l.side)} (${pl(l.prof)}), o time ganha ${fmt0(l.net)} de valor com a troca.`
+    : `Na ótica de ${nm(l.side)} (${pl(l.prof)}), o time perde ${fmt0(-l.net)} de valor, diferença de ${fmt1(l.pct*100)}%, com ${fmtP(l.conf)} de confiança.`;
+  const neutralLabel = {ok:'aprovada', warn:'análise do LM', bad:'reprovada'}[j.level];
+  const reasons = [
+    lensTxt(lA), lensTxt(lB),
+    `Cada time foi avaliado pelo próprio perfil, e o parecer segue o lado que mais perde. Para conferência do LM, na ótica neutra a diferença é de ${fmt1(j.pct*100)}% e a troca seria ${neutralLabel}.`,
+    ...j.reasons.slice(1).filter(r=>!/^A diferença (absoluta|passa)/.test(r))
+  ];
+  if(worst.pct>CONFIG.REVIEW_PCT && worst.conf<CONFIG.CONF_REJECT) reasons.splice(3,0,`A perda passa de ${Math.round(CONFIG.REVIEW_PCT*100)}%, mas a margem de erro é grande. Por isso a troca vai para análise e não é reprovada automaticamente.`);
+  const label = {ok:'Aprovada', warn:'Análise do LM', bad:'Reprovada'}[level];
+  const text = {
+    ok:'Pela ótica de cada time, a troca está dentro do equilíbrio exigido pela liga.',
+    warn:'A troca não é automática. O LM precisa avaliar antes de aceitar.',
+    bad:`Pela ótica do próprio perfil, ${nm(worst.side)} perde mais de ${Math.round(CONFIG.REVIEW_PCT*100)}% com pelo menos ${fmtP(CONFIG.CONF_REJECT)} de confiança. A troca não deve ser aceita como está.`
+  }[level];
+  return Object.assign({}, j, {level, label, text, reasons, lenses:[lA,lB], worst, neutral:{pct:j.pct, level:j.level}});
+}
+function judgeNeutral(){
   const nA=$('#nameA').value.trim()||'Time A', nB=$('#nameB').value.trim()||'Time B';
   const sendA=sumVal(trade.A), sendB=sumVal(trade.B);
   const diff=Math.abs(sendA-sendB), big=Math.max(sendA,sendB);
@@ -928,7 +1010,10 @@ function renderResult(){
   const tot=j.sendA+j.sendB || 1;
   $('#barA').style.width=(j.sendA/tot*100)+'%'; $('#barB').style.width=(j.sendB/tot*100)+'%';
   $('#barlA').textContent=`${j.nA} envia ${fmt0(j.sendA)}`; $('#barlB').textContent=`${j.nB} envia ${fmt0(j.sendB)}`;
-  $('#conf').innerHTML = j.diff>0 ? `Diferença de <b>${fmt1(j.pct*100)}%</b>. Confiança estatística de <b>${fmtP(j.conf)}</b>.` : '';
+  if(j.lenses){
+    const w = j.worst, nm = w.side==='A' ? j.nA : j.nB;
+    $('#conf').innerHTML = w.loss>0 ? `Maior perda: <b>${esc(nm)}</b>, <b>${fmt1(w.pct*100)}%</b> pela ótica ${esc(PROF()[w.prof].label.toLowerCase())}. Confiança de <b>${fmtP(w.conf)}</b>. Ótica neutra: ${fmt1(j.neutral.pct*100)}%.` : `Nenhum time perde valor pela própria ótica. Ótica neutra: ${fmt1(j.neutral.pct*100)}%.`;
+  } else $('#conf').innerHTML = j.diff>0 ? `Diferença de <b>${fmt1(j.pct*100)}%</b>. Confiança estatística de <b>${fmtP(j.conf)}</b>.` : '';
   $('#reasons').innerHTML=j.reasons.map(r=>`<li>${esc(r)}</li>`).join('');
 }
 
@@ -937,8 +1022,8 @@ function parecerText(){
   const line = items => items.map(it=>{const i=itemInfo(it); return i?`${i.name} (${fmt0(i.value)})`:''}).filter(Boolean).join(', ');
   return [
     `PARECER DE TROCA, ${isKeeper() ? 'LIGA DYNASTY, 10 KEEPERS' : 'LIGA RATÃO FANTASY'}`,
-    `${j.nA} envia: ${line(trade.A)}. Total ${fmt0(j.sendA)}.`,
-    `${j.nB} envia: ${line(trade.B)}. Total ${fmt0(j.sendB)}.`,
+    `${j.nA}${j.lenses?` (perfil ${PROF()[j.pA].label})`:''} envia: ${line(trade.A)}. Total ${fmt0(j.sendA)}.`,
+    `${j.nB}${j.lenses?` (perfil ${PROF()[j.pB].label})`:''} envia: ${line(trade.B)}. Total ${fmt0(j.sendB)}.`,
     `Resultado: ${j.label.toUpperCase()}. ${j.text}`,
     ...j.reasons.map(r=>'• '+r),
     `Dados ESPN de ${stamp(DATA.at)}.${isKeeper() && HB ? ` Ranking dynasty de ${hbDate(HB.updated)}.` : ''}`
@@ -947,8 +1032,9 @@ function parecerText(){
 $('#copyBtn').onclick=async()=>toast(await copyText(parecerText())?'Parecer copiado':'Não foi possível copiar');
 $('#linkBtn').onclick=async()=>{ updateHash(); toast(await copyText(location.href)?'Link copiado':'Não foi possível copiar'); };
 $('#clearBtn').onclick=()=>{ trade.A=[]; trade.B=[]; renderTrade(); };
-$('#swapBtn').onclick=()=>{ [trade.A,trade.B]=[trade.B,trade.A]; const a=$('#nameA').value; $('#nameA').value=$('#nameB').value; $('#nameB').value=a; renderTrade(); };
+$('#swapBtn').onclick=()=>{ [trade.A,trade.B]=[trade.B,trade.A]; const a=$('#nameA').value; $('#nameA').value=$('#nameB').value; $('#nameB').value=a; const pa=$('#profA').value; $('#profA').value=$('#profB').value; $('#profB').value=pa; renderTrade(); };
 ['#nameA','#nameB'].forEach(s=>$(s).addEventListener('input',()=>{ renderResult(); updateHash(); }));
+$$('.prof').forEach(el=>{ el.innerHTML = Object.entries(PROF()).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join(''); el.addEventListener('change',()=>{ renderResult(); updateHash(); }); });
 
 /* Escolhas de draft */
 function setupPickForms(){
@@ -972,7 +1058,9 @@ setupPickForms();
 function updateHash(){
   if(!trade.A.length && !trade.B.length && !isKeeper()){ history.replaceState(null,'',location.pathname+location.search); return; }
   const enc = items => items.join('.');
-  const q=new URLSearchParams({m:isKeeper()?'k':'r', a:enc(trade.A), b:enc(trade.B), na:$('#nameA').value, nb:$('#nameB').value});
+  const o = {m:isKeeper()?'k':'r', a:enc(trade.A), b:enc(trade.B), na:$('#nameA').value, nb:$('#nameB').value};
+  if(isKeeper()){ if(getProf('A')!=='neutro') o.pa=getProf('A'); if(getProf('B')!=='neutro') o.pb=getProf('B'); }
+  const q=new URLSearchParams(o);
   history.replaceState(null,'','#'+q.toString());
 }
 function restoreFromHash(){
@@ -984,6 +1072,7 @@ function restoreFromHash(){
     trade.A=items(q.get('a')); trade.B=items(q.get('b'));
     if(q.get('na')) $('#nameA').value=q.get('na').slice(0,30);
     if(q.get('nb')) $('#nameB').value=q.get('nb').slice(0,30);
+    for(const s of ['A','B']){ const v=q.get('p'+s.toLowerCase()); const el=$('#prof'+s); if(el && v && PROF()[v]) el.value=v; }
   }catch(e){}
 }
 
@@ -1081,6 +1170,11 @@ function renderCriteria(){
   $('#ageTbl').innerHTML = '<tr><th>Idade hoje</th>'+ages.map(a=>`<th class="n">${a}</th>`).join('')+'</tr>'
     + rows(20,72,'Reserva durável') + rows(32,72,'Titular durável') + rows(32,60,'Titular frágil');
   $('#hbMin').textContent = fmtP(K.HB_MIN);
+  $('#paramsInfo').textContent = PARAMS_META
+    ? `Parâmetros em uso calibrados em ${PARAMS_META.calibrado_em ? PARAMS_META.calibrado_em.split('-').reverse().join('/') : 'data desconhecida'}, com as temporadas ${PARAMS_META.temporadas || 'não informadas'}. A recalibração é automática, todo início de outubro, e só troca um parâmetro quando a precisão fora da amostra não piora.`
+    : 'Arquivo de parâmetros indisponível. Valem os parâmetros embutidos na ferramenta, de 21/10/2026.';
+  $('#profTbl').innerHTML = '<tr><th>Perfil</th><th class="n">Atual</th><th class="n">+1</th><th class="n">+2</th><th class="n">+3</th><th class="n">+4</th></tr>'
+    + Object.values(K.PROFILES).map(v=>`<tr><td>${v.label}</td>${v.w.map(x=>`<td class="n">${dec(x)}</td>`).join('')}</tr>`).join('');
   $('#keeperLine').textContent = K.KEEPERS*CONFIG.TEAMS;
   $('#retTbl').innerHTML = '<tr><th>Idade no início da temporada</th>'+Object.keys(K.RETIRE).map(a=>`<th class="n">${a}${+a===42?'+':''}</th>`).join('')+'</tr><tr><td>Chance de não jogar</td>'+Object.values(K.RETIRE).map(v=>`<td class="n">${fmtP(v)}</td>`).join('')+'</tr>';
   $('#hbInfo').textContent = !KP.ready ? '' : KP.hbOk
@@ -1092,11 +1186,41 @@ const pctDelta = f => (f>=1?'+':'') + fmt1((f-1)*100) + '%';
 /* Abas */
 $$('.tab').forEach(t=>t.onclick=()=>{ $$('.tab').forEach(x=>x.classList.toggle('active',x===t)); $$('.panel').forEach(p=>p.classList.toggle('active',p.id==='p-'+t.dataset.tab)); });
 
+/* Parâmetros calibrados, lidos de params.json; se o arquivo faltar ou vier inválido, valem os embutidos */
+let PARAMS_META = null;
+const isNum = x => typeof x === 'number' && isFinite(x);
+const isArr = (a, n) => Array.isArray(a) && a.length === n && a.every(isNum);
+function applyParams(j){
+  const s = j && j.season, k = j && j.keeper; let n = 0;
+  if(s){
+    if(isNum(s.PRIOR_GAMES) && s.PRIOR_GAMES>0){ CONFIG.PRIOR_GAMES = s.PRIOR_GAMES; n++; }
+    if(isNum(s.FORM15) && s.FORM15>=0 && s.FORM15<=0.5){ CONFIG.FORM15 = s.FORM15; n++; }
+    if(isNum(s.FORM30) && s.FORM30>=0 && s.FORM30<=0.5){ CONFIG.FORM30 = s.FORM30; n++; }
+    if(isArr(s.ABSENCE_FACTOR, 6) && s.ABSENCE_FACTOR.every(x=>x>0.3 && x<1.5)){ CONFIG.ABSENCE_FACTOR = s.ABSENCE_FACTOR; n++; }
+  }
+  if(k){
+    if(k.PROD && [1,2,3,4].every(i=>isArr(k.PROD[i], 5))){ CONFIG.KEEPER.PROD = {1:k.PROD[1], 2:k.PROD[2], 3:k.PROD[3], 4:k.PROD[4]}; n++; }
+    if(k.SD_FUT && [1,2,3,4].every(i=>isArr(k.SD_FUT[i], 2))){ CONFIG.KEEPER.SD_FUT = {1:k.SD_FUT[1], 2:k.SD_FUT[2], 3:k.SD_FUT[3], 4:k.SD_FUT[4]}; n++; }
+    if(isNum(k.DUR_MEAN) && Math.abs(k.DUR_MEAN)<2){ CONFIG.KEEPER.DUR.MEAN = k.DUR_MEAN; n++; }
+    if(isNum(k.HB_MIN) && k.HB_MIN>=0 && k.HB_MIN<=0.6){ CONFIG.KEEPER.HB_MIN = k.HB_MIN; n++; }
+  }
+  if(n) PARAMS_META = j.meta || {};
+  return n;
+}
+async function loadParams(){
+  try{
+    const ctl = new AbortController(); const tm = setTimeout(()=>ctl.abort(), 3000);
+    const r = await fetch('params.json', {cache:'no-cache', signal:ctl.signal}); clearTimeout(tm);
+    if(r.ok) applyParams(await r.json());
+  }catch(e){ console.warn('params.json indisponível, usando parâmetros embutidos'); }
+}
+
 /* Início */
-(function init(){
+(async function init(){
   let m = store.get('ratao-mode') || 'redraft';
   try{ const q=new URLSearchParams(location.hash.slice(1)); if(q.get('m')==='k') m='keeper'; else if(q.get('m')==='r') m='redraft'; }catch(e){}
   setMode(m, true);
+  await loadParams();
   load(false);
 })();
 </script>
