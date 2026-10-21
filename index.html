@@ -1207,12 +1207,16 @@ function applyParams(j){
   if(n) PARAMS_META = j.meta || {};
   return n;
 }
+// lido direto do repositório, para a recalibração automática valer sem novo deploy; a cópia publicada é a reserva
+const PARAMS_URLS = ['https://raw.githubusercontent.com/viitorfb-source/calculadora-ratao/main/params.json', 'params.json'];
 async function loadParams(){
-  try{
-    const ctl = new AbortController(); const tm = setTimeout(()=>ctl.abort(), 3000);
-    const r = await fetch('params.json', {cache:'no-cache', signal:ctl.signal}); clearTimeout(tm);
-    if(r.ok) applyParams(await r.json());
-  }catch(e){ console.warn('params.json indisponível, usando parâmetros embutidos'); }
+  for(const url of PARAMS_URLS){
+    try{
+      const ctl = new AbortController(); const tm = setTimeout(()=>ctl.abort(), 3000);
+      const r = await fetch(url, {cache:'no-cache', signal:ctl.signal}); clearTimeout(tm);
+      if(r.ok && applyParams(await r.json())) return;
+    }catch(e){ console.warn('Parâmetros indisponíveis em ' + url); }
+  }
 }
 
 /* Início */
