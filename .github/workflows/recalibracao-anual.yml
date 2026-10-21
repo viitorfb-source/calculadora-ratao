@@ -1,0 +1,41 @@
+name: Recalibração anual
+# Todo dia 5 de outubro refaz a calibração com o histórico da ESPN. Cada bloco de parâmetros
+# só é trocado quando a precisão fora da amostra não piora. Também pode ser acionada manualmente.
+on:
+  schedule:
+    - cron: '41 11 5 10 *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  issues: write
+jobs:
+  recalibrar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Recalibrar
+        id: cal
+        run: |
+          set +e
+          node scripts/calibrate.mjs | tee saida.txt
+          code=${PIPESTATUS[0]}
+          cat saida.txt >> "$GITHUB_STEP_SUMMARY"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" != "0" ] && [ "$code" != "2" ]; then exit "$code"; fi
+      - name: Salvar no repositório
+        run: |
+          git config user.name "Rotina da calculadora"
+          git config user.email "actions@users.noreply.github.com"
+          git add params.json data
+          git diff --cached --quiet || (git commit -m "Recalibração anual $(date -u +%F)" && git push)
+      - name: Avisar quando algum bloco foi recusado
+        if: steps.cal.outputs.code == '2'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --title "Recalibração $(date -u +%Y): parte dos parâmetros foi mantida" \
+            --body "A recalibração anual manteve parte dos parâmetros por falta de amostra, piora de precisão ou falha. Veja o relatório em data/relatorios/recalibracao-$(date -u +%Y).md."
